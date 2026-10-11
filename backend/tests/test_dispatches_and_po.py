@@ -1,8 +1,15 @@
-import requests
-import json
 import io
+import json
+import pytest
+from fastapi.testclient import TestClient
+from app.main import app
+from app.seed.seed import run_seed
 
-BASE_URL = "http://localhost:8000"
+client = TestClient(app)
+
+@pytest.fixture(scope="module", autouse=True)
+def init_db():
+    run_seed(reset=True)
 
 def test_purchase_orders():
     print("--- Testing purchase_orders Profile, Validate, Commit ---")
@@ -13,9 +20,9 @@ def test_purchase_orders():
     )
     
     # 1. Profile
-    files = {"file": ("purchase_orders.csv", po_csv.encode("utf-8"), "text/csv")}
+    files = {"file": ("purchase_orders.csv", io.BytesIO(po_csv.encode("utf-8")), "text/csv")}
     data = {"target_table": "purchase_orders"}
-    resp = requests.post(f"{BASE_URL}/api/data/profile", files=files, data=data)
+    resp = client.post("/api/data/profile", files=files, data=data)
     print(f"PO Profile Status: {resp.status_code}")
     assert resp.status_code == 200, resp.text
     profile_data = resp.json()
@@ -23,12 +30,12 @@ def test_purchase_orders():
     print(f"PO Profile Total Rows: {profile_data['total_rows']}, Status: {profile_data['status']}")
 
     # 2. Validate
-    files = {"file": ("purchase_orders.csv", po_csv.encode("utf-8"), "text/csv")}
+    files = {"file": ("purchase_orders.csv", io.BytesIO(po_csv.encode("utf-8")), "text/csv")}
     val_data = {
         "target_table": "purchase_orders",
         "mapping_json": json.dumps(profile_data["mapping_analysis"]["mapping"])
     }
-    resp = requests.post(f"{BASE_URL}/api/data/validate", files=files, data=val_data)
+    resp = client.post("/api/data/validate", files=files, data=val_data)
     print(f"PO Validate Status: {resp.status_code}")
     assert resp.status_code == 200, resp.text
     val_res = resp.json()
@@ -37,7 +44,7 @@ def test_purchase_orders():
 
     # 3. Commit
     commit_data = {"import_id": import_id, "imported_by": "Test Suite"}
-    resp = requests.post(f"{BASE_URL}/api/data/commit", data=commit_data)
+    resp = client.post("/api/data/commit", data=commit_data)
     print(f"PO Commit Status: {resp.status_code}")
     assert resp.status_code == 200, resp.text
     commit_res = resp.json()
@@ -60,9 +67,9 @@ def test_dispatches_whole_dataset():
     )
 
     # 1. Profile
-    files = {"file": ("dispatches.csv", dispatch_csv.encode("utf-8"), "text/csv")}
+    files = {"file": ("dispatches.csv", io.BytesIO(dispatch_csv.encode("utf-8")), "text/csv")}
     data = {"target_table": "dispatches"}
-    resp = requests.post(f"{BASE_URL}/api/data/profile", files=files, data=data)
+    resp = client.post("/api/data/profile", files=files, data=data)
     print(f"Dispatches Profile Status: {resp.status_code}")
     assert resp.status_code == 200, resp.text
     profile_data = resp.json()
@@ -70,12 +77,12 @@ def test_dispatches_whole_dataset():
     assert profile_data["total_rows"] == 6
 
     # 2. Validate
-    files = {"file": ("dispatches.csv", dispatch_csv.encode("utf-8"), "text/csv")}
+    files = {"file": ("dispatches.csv", io.BytesIO(dispatch_csv.encode("utf-8")), "text/csv")}
     val_data = {
         "target_table": "dispatches",
         "mapping_json": json.dumps(profile_data["mapping_analysis"]["mapping"])
     }
-    resp = requests.post(f"{BASE_URL}/api/data/validate", files=files, data=val_data)
+    resp = client.post("/api/data/validate", files=files, data=val_data)
     print(f"Dispatches Validate Status: {resp.status_code}")
     assert resp.status_code == 200, resp.text
     val_res = resp.json()
@@ -88,13 +95,14 @@ def test_dispatches_whole_dataset():
 
     # 3. Commit
     commit_data = {"import_id": import_id, "imported_by": "Test Suite"}
-    resp = requests.post(f"{BASE_URL}/api/data/commit", data=commit_data)
+    resp = client.post("/api/data/commit", data=commit_data)
     print(f"Dispatches Commit Status: {resp.status_code}")
     assert resp.status_code == 200, resp.text
     commit_res = resp.json()
     print(f"Dispatches Committed Rows: {commit_res['committed_rows']} / 6")
     assert commit_res["committed_rows"] == 6, f"Expected 6 committed rows, got {commit_res['committed_rows']}"
     print("Dispatches Whole Dataset End-to-end Test PASSED!\n")
+
 
 if __name__ == "__main__":
     test_purchase_orders()
